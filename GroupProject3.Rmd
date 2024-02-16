@@ -109,25 +109,6 @@ library(corrplot)
 corrplot(correlation_matrix, method = "circle")
 ```
 
-- correlation between forecast
-
-```{r}
-# Select relevant columns from your data frame
-columns_of_interest <- c("forecast_1to3", "forecast_3to6", "forecast_6to9", "sales_0to1", "sales_1to3", "sales_3to6", "sales_6to9")
-temp_data_subset <- temp_data1[, columns_of_interest]
-
-# Calculate the correlation matrix
-correlation_matrix <- cor(temp_data_subset)
-
-# Load the corrplot package
-library(corrplot)
-
-# Visualize the correlation matrix
-corrplot(correlation_matrix, method = "circle")
-```
-
-
-
 - Check means of forecast
 
 ```{r}

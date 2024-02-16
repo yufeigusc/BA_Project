@@ -18,10 +18,14 @@ knitr::opts_chunk$set(warning = FALSE,
 ```
 
 
-# Loading and Exploring the Data Set
+```{r}
+train_before_factor = read.csv("Competition_Train.csv")
+missing_values <- any(is.na(train_before_factor))
 
+# Print the result
+print(missing_values)
+```
 
-Read the data files as usual.
 ```{r}
 train = read.csv("Competition_Train.csv")
 test = read.csv("Competition_Test.csv")
@@ -42,10 +46,6 @@ test[18:22] = lapply(test[18:22], as.factor)
 ```
 
 
-You are encouraged to explore the data set in more detail to understand the variables and obtain some insights that might help you build better models.
-
-
-Later, we are going to use two new packages, "caret" and "e1071", to carry out the cross-validation for a logistic regression model.  Before that, we need to change the level labels since we want to use AUC as the performance measure in cross-validation. You can test the cross-validation without running the following code chunk, and see what error message you get.
 ```{r}
 library(plyr)
 train$potential_issue = revalue(train$potential_issue, c("0"="No", "1"="Yes"))
@@ -57,10 +57,6 @@ test[18:22] = lapply(test[18:22], function(x) revalue(x, c("0"="No", "1"="Yes"))
 ```
 
 
-# Comparing Two Prediction Models
-
-
-In this demonstration, we will only compare two logistic regression models, one using all the independent variables in the data set and the other using only one independent variable, *national_inv*. We will use $k$-fold cross-validation to compare the performance of these two models. Let's install and load two new packages.
 ```{r echo = TRUE, message = FALSE, warning = FALSE}
 library(caret)
 library(e1071)
@@ -74,98 +70,143 @@ fitControl = trainControl(method = "cv", number = 10, classProbs = TRUE, summary
 The first argument, *method = "cv"*, tells the function to use the cross-validation method. The additional arguments are necessary since we want to use AUC as the performance measure in cross-validation.
 
 
-Now, we are ready to perform cross-validation. Since there is some random component in $k$-fold cross-validation---random partition into $k$ folds---we can synchronize the results by setting a common random seed first. You can explore different seeds in the competition. We will use $k$-fold cross-validation to obtain the first model's performance. Recall that our first model is a logistic regression model using all the independent variables. There are too many variables in the data set, so we will use a trick to make the coding easier. The dot '.' used on the right-hand side of the prediction equation below indicates that all the variables in the data frame except the dependent variable are used in the prediction. However, we do not want to include *sku* in the model, so we add the argument *- sku*.
 ```{r}
 set.seed(123)
 #train(went_on_backorder ~ . - sku, data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
 ```
 
 
-When you run the above code chunk, there may be a warning saying "glm.fit: fitted probabilities numerically 0 or 1 occurred." The message indicates that some predicted numbers are too close to 0 or 1. This can be caused by extreme values (outliers) in some variables. In the demonstration, we ignore the warning message and proceed to use the model and its prediction. However, this suggests that you should explore the data more carefully and understand the data better so that you may find ways to build better models. Note that the warning message may repeat $k$ times due to $k$-fold cross-validation.
-
-
-
-The reported sensitivity (*Sens*) and specificity (*Spec*) are computed using the threshold value of 0.5, which you can ignore in this case since the performance measure for the competition is AUC, reported under *ROC* in the above output.
-
-
-The second model's cross-validation performance can be obtained in a similar way. Note that you may want to use the same seed here to ensure that the difference in cross-validation performance is not due to the $k$-fold random partition.
 ```{r}
 set.seed(123)
 #train(went_on_backorder ~ national_inv, data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
 ```
 
-
-- Check correlation
-
+- forecast combine
 
 ```{r}
-temp_train = train
-numeric_cols = sapply(temp_train, is.numeric)
-# Convert non-numeric columns to numeric
-temp_train[!numeric_cols] <- lapply(temp_train[!numeric_cols], as.numeric)  
-#str(temp_train)
-#cor(temp_train)
+temp_data1 = train
+temp_data1$forecast_1to3 = train$forecast_3_month
+temp_data1$forecast_3to6 = train$forecast_6_month - train$forecast_3_month
+temp_data1$forecast_6to9 = train$forecast_9_month - train$forecast_6_month
+average_forecast_3 <- mean(temp_data1$forecast_1to3, na.rm = TRUE)
+average_forecast_6 <- mean(temp_data1$forecast_3to6, na.rm = TRUE)
+average_forecast_9 <- mean(temp_data1$forecast_6to9, na.rm = TRUE)
+str(average_forecast_3)
+str(average_forecast_6)
+str(average_forecast_9)
+temp_data1 <- subset(temp_data1, select = -c(forecast_3_month, forecast_6_month, forecast_9_month))
+print(names(temp_data1))
 ```
 
-- RFE feature elimination
-
-- install
-install.packages("randomForest")
-install.packages("mlbench")
-
+- sales combine
 
 ```{r}
-# Load required libraries
-library(caret)
-
-library(mlbench)
-
-# Load your dataset
-data <- train
-
-# Create a control function for RFE
-control <- rfeControl(functions = rfFuncs, method = "cv", number = 10)
-
-# Perform recursive feature elimination (RFE)
-result <- rfe(data[, -which(names(data) == "went_on_backorder")], 
-               data$went_on_backorder, 
-               sizes = c(1:ncol(data)-1), 
-               rfeControl = control)
-
-# Print the results
-print(result)
-
+temp_data1$sales_0to1 = train$sales_1_month
+temp_data1$sales_1to3 = train$sales_3_month - train$sales_1_month
+temp_data1$sales_3to6 = train$sales_6_month - train$sales_3_month
+temp_data1$sales_6to9 = train$sales_9_month - train$sales_6_month
+average_sale_1 <- mean(temp_data1$sales_0to1, na.rm = TRUE)
+average_sale_3 <- mean(temp_data1$sales_1to3, na.rm = TRUE)
+average_sale_6 <- mean(temp_data1$sales_3to6, na.rm = TRUE)
+average_sale_9 <- mean(temp_data1$sales_6to9, na.rm = TRUE)
+str(average_sale_1)
+str(average_sale_3)
+str(average_sale_6)
+str(average_sale_9)
+temp_data1 <- subset(temp_data1, select = -c(sales_1_month, sales_3_month, sales_6_month, sales_9_month))
+print(names(temp_data1))
 ```
 
 
-- LASSO regression model
-- install
-install.packages("glmnet")
-
+- rebuild model with new columns
+- no sku
 ```{r}
-library(glmnet)
-
-data <- read.csv("Competition_Train.csv")
-
-# Define predictors (all variables except went_on_backorder)
-predictors <- data[, !names(data) %in% "went_on_backorder"]
-# Define response variable
-response <- data$went_on_backorder
-
-# Fit LASSO regression model
-lasso_model <- glmnet(predictors, response, alpha = 1)
-
-# Plot coefficients
-plot(lasso_model, xvar = "lambda", label = TRUE)
-
+set.seed(123)
+train(went_on_backorder ~ . - sku, data = temp_data1, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
 ```
 
+```{r}
+model_tempdata1 = glm(went_on_backorder ~ . - sku, data = temp_data1, family = "binomial")
+summary(model_tempdata1)
+```
 
+- national_inv
 
 ```{r}
 set.seed(123)
 train(went_on_backorder ~ national_inv, data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
 ```
+
+
+- no sku, rev_stop, stop_auto_buy
+
+```{r}
+temp_data2 = temp_data1
+temp_data2 = subset(temp_data2, select = -c(rev_stop, stop_auto_buy))
+set.seed(123)
+model_tempdata1 = glm(went_on_backorder ~ . - sku, data = temp_data2, family = "binomial")
+summary(model_tempdata1)
+```
+
+```{r}
+set.seed(123)
+train(went_on_backorder ~ . - sku, data = temp_data2, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
+
+```
+
+- no sku, perf_12_month
+
+```{r}
+temp_data2 = temp_data1
+temp_data2 = subset(temp_data2, select = -c(perf_12_month_avg, forecast_6to9,rev_stop))
+set.seed(123)
+model_tempdata1 = glm(went_on_backorder ~ . - sku, data = temp_data2, family = "binomial")
+summary(model_tempdata1)
+```
+
+```{r}
+set.seed(123)
+train(went_on_backorder ~ . - sku, data = temp_data2, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
+
+```
+
+- no sku, 
+
+```{r}
+print(colnames(train))
+```
+
+
+
+```{r}
+temp_data2 = train
+temp_data2 = subset(temp_data2, select = -c( sales_9_month , forecast_9_month))
+set.seed(123)
+model_tempdata1 = glm(went_on_backorder ~ . - sku, data = temp_data2, family = "binomial")
+summary(model_tempdata1)
+```
+
+```{r}
+set.seed(123)
+train(went_on_backorder ~ . - sku, data = temp_data2, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
+
+```
+
+```{r}
+model_tempdata1 = glm(went_on_backorder ~ deck_risk+oe_constraint+ppap_risk+stop_auto_buy+rev_stop, data = temp_data2, family = "binomial")
+summary(model_tempdata1)
+```
+
+
+- modify dataset
+```{r}
+temp_data3 = train
+sales_avg = 
+temp_data3$transit_rate = train$in_transit_qty / train$lead_time
+temp_data3$risk_flag = train$deck_risk+train$oe_constraint+train$ppap_risk+train$stop_auto_buy+train$rev_stop+train$potential_issue
+
+```
+
 
 
 Between these two logistic regression models, the first one with all the independent variables performs better in cross-validation. Now, we will retrain the selected model using the whole training set.

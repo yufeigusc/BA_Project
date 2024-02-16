@@ -1,0 +1,329 @@
+---
+title: "R Notebook Template for Competition"
+author: "Guo Yufei"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+    theme: readable
+    toc: yes
+---
+
+```{r global-options, echo = FALSE, message = FALSE}
+knitr::opts_chunk$set(warning = FALSE, 
+                      fig.height = 6,
+                      fig.width = 6,
+                      fig.align = "center")
+```
+
+
+```{r}
+train_before_factor = read.csv("Competition_Train.csv")
+missing_values <- any(is.na(train_before_factor))
+
+# Print the result
+print(missing_values)
+```
+
+```{r}
+train = read.csv("Competition_Train.csv")
+test = read.csv("Competition_Test.csv")
+#str(train)
+#str(test)
+```
+
+
+We can convert categorical variables to appropriate types.
+```{r}
+train$potential_issue = as.factor(train$potential_issue)
+train[18:23] = lapply(train[18:23], as.factor)
+#str(train)
+test$potential_issue = as.factor(test$potential_issue)
+test[18:22] = lapply(test[18:22], as.factor)
+#str(test)
+
+```
+
+
+```{r}
+library(plyr)
+train$potential_issue = revalue(train$potential_issue, c("0"="No", "1"="Yes"))
+train[18:23] = lapply(train[18:23], function(x) revalue(x, c("0"="No", "1"="Yes")))
+#str(train)
+test$potential_issue = revalue(test$potential_issue, c("0"="No", "1"="Yes"))
+test[18:22] = lapply(test[18:22], function(x) revalue(x, c("0"="No", "1"="Yes")))
+#str(test)
+```
+
+
+- Check correlation
+
+
+```{r}
+temp_train = train
+numeric_cols = sapply(temp_train, is.numeric)
+# Convert non-numeric columns to numeric
+temp_train[!numeric_cols] <- lapply(temp_train[!numeric_cols], as.numeric)  
+#str(temp_train)
+correlation_matrix = cor(temp_train)
+library(corrplot)
+corrplot(correlation_matrix, method = "circle")
+```
+
+```{r}
+# Load necessary libraries
+library(readr) # For reading data
+library(dplyr) # For data manipulation
+library(corrplot) # For correlation plot visualization
+
+# Read the dataset
+cor_data1 <- read_csv("Competition_Train.csv") # Replace "your_dataset.csv" with the path to your dataset
+
+# Compute correlation matrix
+correlation_matrix <- cor(cor_data1)
+
+# Identify correlations with the target variable
+cor_with_target <- correlation_matrix[, "went_on_backorder"]
+
+# Sort correlations in descending order
+cor_with_target_sorted <- sort(cor_with_target, decreasing = TRUE)
+
+# Print correlations with the target variable
+print(cor_with_target_sorted)
+
+# Visualize correlations with a correlation plot
+corrplot(correlation_matrix, method = "circle")
+
+```
+
+- correlation between forecast
+**remove one of 6 month and 9month**
+
+```{r}
+# Select relevant columns from your data frame
+columns_of_interest <- c("forecast_3_month", "forecast_6_month", "forecast_9_month")
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(train[, columns_of_interest])
+
+print(correlation_matrix)
+
+# Load the corrplot package
+library(corrplot)
+
+# Visualize the correlation matrix
+corrplot(correlation_matrix, method = "circle")
+```
+
+
+- sales cor
+```{r}
+# Select relevant columns from your data frame
+columns_of_interest <- c("sales_1_month","sales_3_month","sales_6_month","sales_9_month")
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(train[, columns_of_interest])
+
+print(correlation_matrix)
+
+# Load the corrplot package
+library(corrplot)
+
+# Visualize the correlation matrix
+corrplot(correlation_matrix, method = "circle")
+```
+
+
+- perf cor
+```{r}
+# Select relevant columns from your data frame
+columns_of_interest <- c("perf_6_month_avg","perf_12_month_avg")
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(train[, columns_of_interest])
+
+print(correlation_matrix)
+
+# Load the corrplot package
+library(corrplot)
+
+# Visualize the correlation matrix
+corrplot(correlation_matrix, method = "circle")
+```
+
+
+- check categorical value distribution
+
+```{r}
+print(colnames(train_before_factor))
+```
+
+
+
+```{r}
+# Assuming your dataset is named "dataset"
+
+factor_col_name <- c("potential_issue", "deck_risk", "oe_constraint", "ppap_risk","stop_auto_buy", "rev_stop")
+
+for (col in factor_col_name) {
+  # Count occurrences of each unique value in the column
+  table_count <- table(train[[col]])
+  
+  # Print column name
+  cat("Column Name: ", col)
+  
+  # Print table count
+  print(table_count)
+  cat("\n")
+  
+}
+
+```
+
+```{r}
+# Subset the dataframe based on the condition train$rev_stop == "yes"
+# Subset the dataframe based on the condition train$rev_stop == "yes"
+subset_df <- train[train$rev_stop == "Yes", ]
+
+# Extract the value of train$went_on_backorder from the subset
+value_of_backorder <- subset_df$went_on_backorder
+
+# Print the value
+table(value_of_backorder)
+
+# Subset the dataframe based on the condition train$rev_stop == "yes"
+subset_df2 <- train[train$rev_stop == "No", ]
+
+# Extract the value of train$went_on_backorder from the subset
+value_of_backorder2 <- subset_df2$went_on_backorder
+
+
+# Print the value
+table(value_of_backorder2)
+
+```
+
+
+
+- check numeric value distribution
+
+```{r}
+# Assuming your dataset is named "dataset" and the numeric column you want to analyze is named "numeric_column"
+
+factor_col_name = c(
+"national_inv","lead_time","in_transit_qty","forecast_3_month" ,"forecast_6_month","forecast_9_month" ,"sales_1_month","sales_3_month","sales_6_month","sales_9_month","min_bank","pieces_past_due", "perf_6_month_avg" ,"perf_12_month_avg", "local_bo_qty"
+)
+for (col in factor_col_name) {
+  # Calculate percentiles
+  percentiles <- quantile(train[[col]], probs = seq(0, 1, by = 0.1)) # Adjust the sequence to specify desired percentiles
+  
+  # Convert to a data frame for better display
+  percentile_table <- data.frame(Percentile = names(percentiles), Value = as.numeric(percentiles))
+  
+  title <- paste("Percentile table for column:", col)
+  
+  # Print the title
+  cat(title, "\n")
+  
+  # Print the percentile table
+  print(percentile_table)
+}
+
+
+
+```
+
+
+
+
+```{r}
+factor_col_name <- c(
+  "in_transit_qty","pieces_past_due","local_bo_qty"
+)
+
+for (col in factor_col_name) {
+  # Count non-zero values
+  non_zero_count <- sum(train[[col]] != 0)
+  
+  # Print column name and count of non-zero values
+  cat("Number of non-zero values in column", col, ":", non_zero_count,
+      " total count: ", non_zero_count/sum(train[[col]])*100, "% \n")
+}
+
+```
+
+- forecast combine
+
+```{r}
+temp_data1 = train
+temp_data1$forecast_1to3 = train$forecast_3_month
+temp_data1$forecast_3to6 = train$forecast_6_month - train$forecast_3_month
+temp_data1$forecast_6to9 = train$forecast_9_month - train$forecast_6_month
+average_forecast_3 <- mean(temp_data1$forecast_1to3, na.rm = TRUE)
+average_forecast_6 <- mean(temp_data1$forecast_3to6, na.rm = TRUE)
+average_forecast_9 <- mean(temp_data1$forecast_6to9, na.rm = TRUE)
+str(average_forecast_3)
+str(average_forecast_6)
+str(average_forecast_9)
+temp_data1 <- subset(temp_data1, select = -c(forecast_3_month, forecast_6_month, forecast_9_month))
+print(names(temp_data1))
+```
+
+- sales combine
+
+```{r}
+temp_data1$sales_0to1 = train$sales_1_month
+temp_data1$sales_1to3 = train$sales_3_month - train$sales_1_month
+temp_data1$sales_3to6 = train$sales_6_month - train$sales_3_month
+temp_data1$sales_6to9 = train$sales_9_month - train$sales_6_month
+average_sale_1 <- mean(temp_data1$sales_0to1, na.rm = TRUE)
+average_sale_3 <- mean(temp_data1$sales_1to3, na.rm = TRUE)
+average_sale_6 <- mean(temp_data1$sales_3to6, na.rm = TRUE)
+average_sale_9 <- mean(temp_data1$sales_6to9, na.rm = TRUE)
+str(average_sale_1)
+str(average_sale_3)
+str(average_sale_6)
+str(average_sale_9)
+temp_data1 <- subset(temp_data1, select = -c(sales_1_month, sales_3_month, sales_6_month, sales_9_month))
+print(names(temp_data1))
+```
+
+- cor again
+
+- correlation between forecast
+
+```{r}
+# Select relevant columns from your data frame
+columns_of_interest <- c("forecast_1to3", "forecast_3to6", "forecast_6to9")
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(temp_data1[, columns_of_interest])
+
+print(correlation_matrix)
+
+# Load the corrplot package
+library(corrplot)
+
+# Visualize the correlation matrix
+corrplot(correlation_matrix, method = "circle")
+```
+
+
+- sales cor
+```{r}
+# Select relevant columns from your data frame
+columns_of_interest <- c("sales_0to1","sales_1to3","sales_3to6","sales_6to9")
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(temp_data1[, columns_of_interest])
+
+print(correlation_matrix)
+
+# Load the corrplot package
+library(corrplot)
+
+# Visualize the correlation matrix
+corrplot(correlation_matrix, method = "circle")
+```
+

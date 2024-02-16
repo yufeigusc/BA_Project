@@ -1,0 +1,190 @@
+---
+title: "R Notebook Template for Competition"
+author: "Guo Yufei"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+    theme: readable
+    toc: yes
+---
+
+```{r global-options, echo = FALSE, message = FALSE}
+knitr::opts_chunk$set(warning = FALSE, 
+                      fig.height = 6,
+                      fig.width = 6,
+                      fig.align = "center")
+```
+
+
+```{r}
+train_before_factor = read.csv("Competition_Train.csv")
+missing_values <- any(is.na(train_before_factor))
+
+# Print the result
+print(missing_values)
+```
+
+```{r}
+train = read.csv("Competition_Train.csv")
+test = read.csv("Competition_Test.csv")
+#str(train)
+#str(test)
+```
+
+
+We can convert categorical variables to appropriate types.
+```{r}
+train$potential_issue = as.factor(train$potential_issue)
+train[18:23] = lapply(train[18:23], as.factor)
+#str(train)
+test$potential_issue = as.factor(test$potential_issue)
+test[18:22] = lapply(test[18:22], as.factor)
+#str(test)
+
+```
+
+
+```{r}
+library(plyr)
+train$potential_issue = revalue(train$potential_issue, c("0"="No", "1"="Yes"))
+train[18:23] = lapply(train[18:23], function(x) revalue(x, c("0"="No", "1"="Yes")))
+#str(train)
+test$potential_issue = revalue(test$potential_issue, c("0"="No", "1"="Yes"))
+test[18:22] = lapply(test[18:22], function(x) revalue(x, c("0"="No", "1"="Yes")))
+#str(test)
+```
+
+
+```{r echo = TRUE, message = FALSE, warning = FALSE}
+library(caret)
+library(e1071)
+```
+
+
+
+- forecast combine
+
+```{r}
+temp_data1 = train
+temp_data1$forecast_1to3 = train$forecast_3_month
+temp_data1$forecast_3to6 = train$forecast_6_month - train$forecast_3_month
+temp_data1$forecast_6to9 = train$forecast_9_month - train$forecast_6_month
+average_forecast_3 <- mean(temp_data1$forecast_1to3, na.rm = TRUE)
+average_forecast_6 <- mean(temp_data1$forecast_3to6, na.rm = TRUE)
+average_forecast_9 <- mean(temp_data1$forecast_6to9, na.rm = TRUE)
+str(average_forecast_3)
+str(average_forecast_6)
+str(average_forecast_9)
+temp_data1 <- subset(temp_data1, select = -c(forecast_3_month, forecast_6_month, forecast_9_month))
+print(names(temp_data1))
+```
+
+- sales combine
+
+```{r}
+temp_data1$sales_0to1 = train$sales_1_month
+temp_data1$sales_1to3 = train$sales_3_month - train$sales_1_month
+temp_data1$sales_3to6 = train$sales_6_month - train$sales_3_month
+temp_data1$sales_6to9 = train$sales_9_month - train$sales_6_month
+average_sale_1 <- mean(temp_data1$sales_0to1, na.rm = TRUE)
+average_sale_3 <- mean(temp_data1$sales_1to3, na.rm = TRUE)
+average_sale_6 <- mean(temp_data1$sales_3to6, na.rm = TRUE)
+average_sale_9 <- mean(temp_data1$sales_6to9, na.rm = TRUE)
+str(average_sale_1)
+str(average_sale_3)
+str(average_sale_6)
+str(average_sale_9)
+temp_data1 <- subset(temp_data1, select = -c(sales_1_month, sales_3_month, sales_6_month, sales_9_month))
+print(names(temp_data1))
+```
+
+- RFE feature elimination (Too many columns)
+
+- install
+install.packages("randomForest")
+install.packages("mlbench")
+
+
+```{r}
+# Load required libraries
+library(caret)
+
+library(mlbench)
+
+# Load your dataset
+data <- train
+
+# Create a control function for RFE
+control <- rfeControl(functions = rfFuncs, method = "cv", number = 10)
+
+# Perform recursive feature elimination (RFE)
+result <- rfe(data[, -which(names(data) == "went_on_backorder")], 
+               data$went_on_backorder, 
+               sizes = c(1:ncol(data)-1), 
+               rfeControl = control)
+
+# Print the results
+print(result)
+
+```
+
+
+- LASSO regression model
+- install
+install.packages("glmnet")
+
+```{r}
+# Load necessary libraries
+library(glmnet)
+
+# Assume your_data is your dataset containing features and the target variable
+# Assuming the target variable is in the last column and named went_on_backorder
+
+# Prepare your data
+# Remove any non-numeric columns or encode categorical variables
+# Ensure there are no missing values
+your_data = train_before_factor
+# Split data into features (X) and target variable (y)
+X <- your_data[, -ncol(your_data)]  # Assuming the last column is the target variable
+y <- your_data[, ncol(your_data)]   # Assuming the last column is the target variable
+
+# Train the Lasso model
+lasso_model <- glmnet(x = as.matrix(X), y = y, family = "binomial", alpha = 1)
+
+# Select the optimal regularization parameter (lambda) using cross-validation
+cv_fit <- cv.glmnet(x = as.matrix(X), y = y, family = "binomial", alpha = 1)
+
+# Plot mean cross-validated error vs. lambda
+plot(cv_fit)
+
+# Identify the optimal lambda value
+opt_lambda <- cv_fit$lambda.min
+
+# Refit the model with the selected lambda value
+lasso_model_selected <- glmnet(x = as.matrix(X), y = y, family = "binomial", alpha = 1, lambda = opt_lambda)
+
+# Extract selected features
+selected_features <- coef(lasso_model_selected)
+
+
+```
+
+```{r}
+# Extract selected features
+selected_features <- coef(lasso_model_selected)
+
+# Extract indices of features with non-zero coefficients
+selected_indices <- which(selected_features != 0)
+
+# Get the names of selected features
+selected_feature_names <- colnames(X)[selected_indices]
+
+# Print or use the selected feature names
+print(selected_feature_names)
+
+```
+
+
+
