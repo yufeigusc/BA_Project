@@ -200,10 +200,21 @@ summary(model_tempdata1)
 
 - modify dataset
 ```{r}
-temp_data3 = train
-sales_avg = 
-temp_data3$transit_rate = train$in_transit_qty / train$lead_time
+temp_data3 = train_before_factor
+temp_data3$potential_issue = as.factor(temp_data3$potential_issue)
+temp_data3$potential_issue = revalue(temp_data3$potential_issue, c("0"="No", "1"="Yes"))
+temp_data3$transit_rate <- ifelse(train$lead_time == 0, 0, train$in_transit_qty / train$lead_time)
 temp_data3$risk_flag = train$deck_risk+train$oe_constraint+train$ppap_risk+train$stop_auto_buy+train$rev_stop+train$potential_issue
+temp_data3 = subset(temp_data3, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop,potential_issue))
+
+missing_values <- any(is.na(temp_data3$risk_flag))
+
+# Print the result
+print(missing_values)
+
+
+set.seed(123)
+#train(went_on_backorder ~ ., data = temp_data3, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
 
 ```
 
