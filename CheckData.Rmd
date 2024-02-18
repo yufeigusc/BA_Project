@@ -327,3 +327,40 @@ library(corrplot)
 corrplot(correlation_matrix, method = "circle")
 ```
 
+
+```{r}
+avg1=mean(train$sales_1_month, na.rm = TRUE)
+avg3=mean(train$sales_3_month, na.rm = TRUE)
+avg6=mean(train$sales_6_month, na.rm = TRUE)
+avg9=mean(train$sales_9_month, na.rm = TRUE)
+print(mean(train$sales_1_month, na.rm = TRUE))
+print(mean(train$sales_3_month, na.rm = TRUE))
+print(mean(train$sales_6_month, na.rm = TRUE))
+print(mean(train$sales_9_month, na.rm = TRUE))
+sa0to3 = avg3
+sa3to6 = avg6-avg3
+sa6to9 = avg9-avg6
+print((sa3to6-sa0to3)/sa0to3)
+print((sa6to9-sa3to6)/sa3to6)
+
+```
+
+```{r}
+avg3=mean(train$forecast_3_month, na.rm = TRUE)
+avg6=mean(train$forecast_6_month, na.rm = TRUE)
+avg9=mean(train$forecast_9_month, na.rm = TRUE)
+fc0to3 = avg3
+fc3to6 = avg6-avg3
+fc6to9 = avg9-avg6
+print(fc0to3)
+print(fc3to6)
+print(fc6to9)
+print("sss")
+print((fc3to6-fc0to3)/fc0to3)
+print((fc6to9-fc3to6)/fc3to6)
+print("sss")
+print(((fc3to6-fc0to3)/fc0to3+(fc6to9-fc3to6)/fc3to6)/2)
+```
+
+
+
