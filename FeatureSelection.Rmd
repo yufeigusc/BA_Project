@@ -62,43 +62,22 @@ library(caret)
 library(e1071)
 ```
 
-
-
-- forecast combine
-
 ```{r}
-temp_data1 = train
-temp_data1$forecast_1to3 = train$forecast_3_month
-temp_data1$forecast_3to6 = train$forecast_6_month - train$forecast_3_month
-temp_data1$forecast_6to9 = train$forecast_9_month - train$forecast_6_month
-average_forecast_3 <- mean(temp_data1$forecast_1to3, na.rm = TRUE)
-average_forecast_6 <- mean(temp_data1$forecast_3to6, na.rm = TRUE)
-average_forecast_9 <- mean(temp_data1$forecast_6to9, na.rm = TRUE)
-str(average_forecast_3)
-str(average_forecast_6)
-str(average_forecast_9)
-temp_data1 <- subset(temp_data1, select = -c(forecast_3_month, forecast_6_month, forecast_9_month))
-print(names(temp_data1))
+risk_flag_sum = rowSums(train_before_factor[, c("deck_risk", "oe_constraint", "ppap_risk", "stop_auto_buy")])
+temp_data3 = train
+temp_data3$risk_flag = risk_flag_sum
+temp_data3 = subset(temp_data3, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
+temp_data4 = temp_data3
+temp_data4$inventory_turnover_ratio1 <- ifelse((train$national_inv + train$in_transit_qty) == 0, 0, train$sales_1_month / ((train$national_inv + train$in_transit_qty) / 2))
+temp_data6 = temp_data4
+diff_forcast = train$forecast_6_month - train$forecast_3_month - train$forecast_3_month
+temp_data6$future_growth = diff_forcast/(train$forecast_3_month+1)
+missing_values <- any(is.na(temp_data6$future_growth))
+
+# Print the result
+print(missing_values)
 ```
 
-- sales combine
-
-```{r}
-temp_data1$sales_0to1 = train$sales_1_month
-temp_data1$sales_1to3 = train$sales_3_month - train$sales_1_month
-temp_data1$sales_3to6 = train$sales_6_month - train$sales_3_month
-temp_data1$sales_6to9 = train$sales_9_month - train$sales_6_month
-average_sale_1 <- mean(temp_data1$sales_0to1, na.rm = TRUE)
-average_sale_3 <- mean(temp_data1$sales_1to3, na.rm = TRUE)
-average_sale_6 <- mean(temp_data1$sales_3to6, na.rm = TRUE)
-average_sale_9 <- mean(temp_data1$sales_6to9, na.rm = TRUE)
-str(average_sale_1)
-str(average_sale_3)
-str(average_sale_6)
-str(average_sale_9)
-temp_data1 <- subset(temp_data1, select = -c(sales_1_month, sales_3_month, sales_6_month, sales_9_month))
-print(names(temp_data1))
-```
 
 - RFE feature elimination (Too many columns)
 
@@ -106,85 +85,61 @@ print(names(temp_data1))
 install.packages("randomForest")
 install.packages("mlbench")
 
-
 ```{r}
 # Load required libraries
-library(caret)
+library("dplyr")
+library("faux")
+library("DataExplorer")
+library("caret")
+library("randomForest")
+```
 
-library(mlbench)
+
+```{r}
+
 
 # Load your dataset
-data <- train
+data <- temp_data6
 
 # Create a control function for RFE
-control <- rfeControl(functions = rfFuncs, method = "cv", number = 10)
+control <- rfeControl(functions = rfFuncs, method = "repeatedcv", repeats = 5, number = 10)
 
-# Perform recursive feature elimination (RFE)
-result <- rfe(data[, -which(names(data) == "went_on_backorder")], 
-               data$went_on_backorder, 
-               sizes = c(1:ncol(data)-1), 
-               rfeControl = control)
+x <- data %>% 
+  select(-went_on_backorder) %>% 
+  as.data.frame()
+
+# Target variable
+y <- data$went_on_backorder
+
+# Training: 80%; Test: 20%
+set.seed(2021)
+inTrain <- createDataPartition(y, p = .80, list = FALSE)[,1]
+
+x_train <- x[ inTrain, ]
+x_test  <- x[-inTrain, ]
+
+y_train <- y[ inTrain]
+y_test  <- y[-inTrain]
+
+result_rfe1 <- rfe(x = x_train, 
+                   y = y_train, 
+                   sizes = c(1:20),
+                   rfeControl = control)
 
 # Print the results
-print(result)
+result_rfe1
 
-```
+# Print the selected features
+predictors(result_rfe1)
 
-
-- LASSO regression model
-- install
-install.packages("glmnet")
-
-```{r}
-# Load necessary libraries
-library(glmnet)
-
-# Assume your_data is your dataset containing features and the target variable
-# Assuming the target variable is in the last column and named went_on_backorder
-
-# Prepare your data
-# Remove any non-numeric columns or encode categorical variables
-# Ensure there are no missing values
-your_data = train_before_factor
-# Split data into features (X) and target variable (y)
-X <- your_data[, -ncol(your_data)]  # Assuming the last column is the target variable
-y <- your_data[, ncol(your_data)]   # Assuming the last column is the target variable
-
-# Train the Lasso model
-lasso_model <- glmnet(x = as.matrix(X), y = y, family = "binomial", alpha = 1)
-
-# Select the optimal regularization parameter (lambda) using cross-validation
-cv_fit <- cv.glmnet(x = as.matrix(X), y = y, family = "binomial", alpha = 1)
-
-# Plot mean cross-validated error vs. lambda
-plot(cv_fit)
-
-# Identify the optimal lambda value
-opt_lambda <- cv_fit$lambda.min
-
-# Refit the model with the selected lambda value
-lasso_model_selected <- glmnet(x = as.matrix(X), y = y, family = "binomial", alpha = 1, lambda = opt_lambda)
-
-# Extract selected features
-selected_features <- coef(lasso_model_selected)
-
+# Print the results visually
+ggplot(data = result_rfe1, metric = "Accuracy") + theme_bw()
+ggplot(data = result_rfe1, metric = "Kappa") + theme_bw()
 
 ```
 
 ```{r}
-# Extract selected features
-selected_features <- coef(lasso_model_selected)
-
-# Extract indices of features with non-zero coefficients
-selected_indices <- which(selected_features != 0)
-
-# Get the names of selected features
-selected_feature_names <- colnames(X)[selected_indices]
-
-# Print or use the selected feature names
-print(selected_feature_names)
-
+print(colnames(x_train))
 ```
-
 
 

@@ -97,9 +97,6 @@ logreg <- function(variables, dataset) {
 ```
 
 ```{r}
-logreg(went_on_backorder ~ . - sku, train)
-```
-```{r}
 crossv <- function(variables, dataset) {
   set.seed(123)
   results = suppressWarnings(train(variables, data = dataset, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC"))
@@ -132,9 +129,14 @@ summary(modelBO)
 ```{r}
 temp_data1 = train
 temp_data1 = subset(temp_data1, select = -c(sku, sales_1_month, rev_stop, forecast_9_month, stop_auto_buy, sales_1_month, forecast_3_month ))
+```
+
+```{r}
 set.seed(123)
 train(went_on_backorder ~ . , data = temp_data1, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
 ```
+
+
 
 - add transit efficiency
 
@@ -161,8 +163,14 @@ risk_flag_sum = rowSums(train_before_factor[, c("deck_risk", "oe_constraint", "p
 temp_data2 = train
 temp_data2$risk_flag = risk_flag_sum
 temp_data2 = subset(temp_data2, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
+
+```
+
+
+```{r}
 crossv(went_on_backorder ~ . -lead_time - sku + (lead_time/in_transit_qty), temp_data2)
 ```
+
 
 - remove forecast_9_month
 
@@ -198,8 +206,13 @@ risk_flag_sum = rowSums(train_before_factor[, c("deck_risk", "oe_constraint", "p
 temp_data3 = train
 temp_data3$risk_flag = risk_flag_sum
 temp_data3 = subset(temp_data3, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
+```
+
+```{r}
 crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_9_month, temp_data3)
 ```
+
+
 
 ```{r}
 mean(train$lead_time, na.rm = TRUE)
@@ -215,8 +228,13 @@ mean(train$lead_time, na.rm = TRUE)
 ```{r}
 temp_data4 = temp_data3
 temp_data4$inventory_turnover_ratio1 <- ifelse((train$national_inv + train$in_transit_qty) == 0, 0, train$sales_1_month / ((train$national_inv + train$in_transit_qty) / 2))
+```
+
+```{r}
 crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time, temp_data4)
 ```
+
+
 
 - remove the other sales
 - sales 1: 0.8722761
@@ -227,27 +245,73 @@ crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-pe
 - add lead time demand : lead_time * (mean(forecast_3_month)/(30*3))
 - Don't put it in!!!!!!!!!!!!!!
 ```{r}
-temp_data5=temp_data4
-mean_forcast_3 = mean(train$forecast_3_month, na.rm = TRUE)
-temp_data5$leadtime_demand = train$lead_time*(mean_forcast_3/9/30)
-crossv_no_suppression(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank, temp_data5)
+#temp_data5=temp_data4
+#mean_forcast_3 = mean(train$forecast_3_month, na.rm = TRUE)
+#temp_data5$leadtime_demand = train$lead_time*(mean_forcast_3/9/30)
+#crossv_no_suppression(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank, temp_data5)
 
 ```
 
 - add future sales growth rate: growth rate from period 0-3 to period 3-6
 ```{r}
-#temp_data6 = temp_data4
-#diff_forcast = train$forecast_6_month - train$forecast_3_month - train$forecast_3_month
-#temp_data6$future_growth = ifelse(train$forecast_3_month == 0, diff_forcast/1, #diff_forcast/train$forecast_3_month)
-#missing_values <- any(is.na(temp_data6$future_growth))
-#
-## Print the result
-#print(missing_values)
-#crossv(went_on_backorder ~ . - #sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank, temp_data6)
+temp_data6 = temp_data4
+diff_forcast = train$forecast_6_month - train$forecast_3_month - train$forecast_3_month
+temp_data6$future_growth = diff_forcast/(train$forecast_3_month+1)
+missing_values <- any(is.na(temp_data6$future_growth))
+
+# Print the result
+print(missing_values)
 ```
 
 ```{r}
+crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank, temp_data6)
+```
+
+
+```{r}
 crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank-forecast_6_month, temp_data6)
+```
+
+- add
+```{r}
+temp_data7 = temp_data6
+temp_data7$risk_flag = temp_data7$risk_flag - train_before_factor$deck_risk + train_before_factor$rev_stop
+
+
+# Print the result
+print(missing_values)
+```
+
+```{r}
+crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank-forecast_6_month-forecast_9_month, temp_data6)
+```
+- from 0.8734018 to:
+- -stop_auto_by 0.8779033
+- -deck_risk - stop_auto_buy 0.8757226
+- -deck_risk 0.8796093
+
+```{r}
+crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank-forecast_6_month-forecast_9_month, temp_data7)
+```
+- multiplication on local_bo_qty and pieces_past_due help a little
+```{r}
+temp_data8 = temp_data7
+temp_data8$overdue_factor = temp_data7$local_bo_qty*temp_data7$pieces_past_due
+```
+
+
+```{r}
+crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank-forecast_6_month-forecast_9_month, temp_data8)
+```
+- ration on peices_past_due and local_bo_qty does not help much
+```{r}
+#temp_data9 = temp_data8
+#temp_data9$overdue_norm_ration = (train$pieces_past_due/max(train$pieces_past_due)) / #(train$local_bo_qty/max(train$local_bo_qty) + 1)
+```
+
+
+```{r}
+print(colnames(train_before_factor))
 ```
 
 
