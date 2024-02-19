@@ -205,7 +205,6 @@ table(value_of_backorder2)
 ```
 
 
-
 - check numeric value distribution
 
 ```{r}

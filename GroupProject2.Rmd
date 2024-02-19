@@ -234,8 +234,6 @@ temp_data4$inventory_turnover_ratio1 <- ifelse((train$national_inv + train$in_tr
 crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time, temp_data4)
 ```
 
-
-
 - remove the other sales
 - sales 1: 0.8722761
 ```{r}
@@ -253,18 +251,21 @@ crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-pe
 ```
 
 - add future sales growth rate: growth rate from period 0-3 to period 3-6
-```{r}
-temp_data6 = temp_data4
-diff_forcast = train$forecast_6_month - train$forecast_3_month - train$forecast_3_month
-temp_data6$future_growth = diff_forcast/(train$forecast_3_month+1)
-missing_values <- any(is.na(temp_data6$future_growth))
+- (forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
 
-# Print the result
-print(missing_values)
-```
 
 ```{r}
 crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank, temp_data6)
+```
+0.8773573
+```{r}
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+)
+
+crossv(formula, temp_data4)
 ```
 
 
@@ -272,10 +273,10 @@ crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-pe
 crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank-forecast_6_month, temp_data6)
 ```
 
-- add
+- remove deck_risk from risk flag
 ```{r}
-temp_data7 = temp_data6
-temp_data7$risk_flag = temp_data7$risk_flag - train_before_factor$deck_risk + train_before_factor$rev_stop
+temp_data6 = temp_data4
+temp_data6$risk_flag = temp_data6$risk_flag - train_before_factor$deck_risk
 
 
 # Print the result
@@ -285,33 +286,84 @@ print(missing_values)
 ```{r}
 crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank-forecast_6_month-forecast_9_month, temp_data6)
 ```
+
+
 - from 0.8734018 to:
 - -stop_auto_by 0.8779033
 - -deck_risk - stop_auto_buy 0.8757226
 - -deck_risk 0.8796093
 
 ```{r}
-crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank-forecast_6_month-forecast_9_month, temp_data7)
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+)
+crossv(formula, temp_data6)
 ```
+
 - multiplication on local_bo_qty and pieces_past_due help a little
+  overdue_factor = local_bo_qty * pieces_past_due
 ```{r}
-temp_data8 = temp_data7
-temp_data8$overdue_factor = temp_data7$local_bo_qty*temp_data7$pieces_past_due
+temp_data7 = temp_data6
+temp_data7$overdue_factor = temp_data7$local_bo_qty*temp_data7$pieces_past_due
+```
+
+```{r}
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  + local_bo_qty*pieces_past_due
+)
+crossv(formula, temp_data6)
+```
+
+```{r}
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  
+)
+crossv(formula, temp_data6)
 ```
 
 
 ```{r}
-crossv(went_on_backorder ~ . - sku+lead_time/in_transit_qty-perf_12_month_avg-perf_6_month_avg-lead_time-sales_1_month-min_bank-forecast_6_month-forecast_9_month, temp_data8)
+crossv(formula, temp_data6)
 ```
-- ration on peices_past_due and local_bo_qty does not help much
+
+
+
+
+- ratio on peices_past_due and local_bo_qty does not help much
 ```{r}
 #temp_data9 = temp_data8
 #temp_data9$overdue_norm_ration = (train$pieces_past_due/max(train$pieces_past_due)) / #(train$local_bo_qty/max(train$local_bo_qty) + 1)
 ```
 
+- work on sales
 
 ```{r}
-print(colnames(train_before_factor))
+temp_data9 = temp_data8
+temp_data9$transit_efficiency = train$lead_time/(train$in_transit_qty+1)
+temp_data9 = subset(temp_data9, select = -c(sku,perf_12_month_avg,perf_6_month_avg,sales_1_month,min_bank,forecast_6_month,forecast_9_month))
+print(colnames(temp_data9))
+```
+```{r}
+crossv(went_on_backorder ~ .  - transit_efficiency + lead_time/in_transit_qty - lead_time, temp_data9)
+```
+
+
+```{r}
+library(corrplot) # For correlation plot visualization
+temp_cor = subset(temp_data8, select = -c(went_on_backorder,perf_12_month_avg,perf_6_month_avg,lead_time,sales_1_month,min_bank,forecast_6_month,forecast_9_month))
+temp_cor$potential_issue = train_before_factor$potential_issue
+correlation_matrix = cor(temp_cor)
+corrplot(correlation_matrix, method = "circle")
 ```
 
 
