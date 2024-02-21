@@ -303,7 +303,7 @@ crossv(formula, temp_data6)
 ```
 
 - multiplication on local_bo_qty and pieces_past_due help a little
-  overdue_factor = local_bo_qty * pieces_past_due
+  overdue_factor = local_bo_qty * pieces_past_due 0.8823446
 ```{r}
 temp_data7 = temp_data6
 temp_data7$overdue_factor = temp_data7$local_bo_qty*temp_data7$pieces_past_due
@@ -318,6 +318,7 @@ formula = as.formula(
 )
 crossv(formula, temp_data6)
 ```
+- can remove forecast_9_month and forecast_3_month 0.8824342
 
 ```{r}
 formula = as.formula(
@@ -345,17 +346,60 @@ crossv(formula, temp_data6)
 #temp_data9$overdue_norm_ration = (train$pieces_past_due/max(train$pieces_past_due)) / #(train$local_bo_qty/max(train$local_bo_qty) + 1)
 ```
 
-- work on sales
+```{r}
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+)
+crossv(formula, temp_data6)
+```
+
+
+- add inventory_compliance
+0.8898747
+
+- remove overdue factor
+0.8899593
 
 ```{r}
-temp_data9 = temp_data8
-temp_data9$transit_efficiency = train$lead_time/(train$in_transit_qty+1)
-temp_data9 = subset(temp_data9, select = -c(sku,perf_12_month_avg,perf_6_month_avg,sales_1_month,min_bank,forecast_6_month,forecast_9_month))
-print(colnames(temp_data9))
+temp_data7 = temp_data6
+temp_data7$inventory_compliance <- ifelse(train$national_inv >= train$min_bank, 1, 0)
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  - forecast_9_month - forecast_3_month
+)
+crossv(formula, temp_data7)
 ```
+
+
+
 ```{r}
-crossv(went_on_backorder ~ .  - transit_efficiency + lead_time/in_transit_qty - lead_time, temp_data9)
+head(train$sales_3_month)
+head(train$sales_3_month/90)
 ```
+
+
+- add Safety Stock Ratio: min_bank/(sales_3_month/30)
+```{r}
+temp_data8 = temp_data7
+temp_data8$safety_stock_ratio = train$min_bank/(train$sales_3_month/90+1)
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+)
+crossv(
+  formula, temp_data8)
+```
+
+
 
 
 ```{r}
