@@ -67,6 +67,7 @@ numeric_cols = sapply(temp_train, is.numeric)
 temp_train[!numeric_cols] <- lapply(temp_train[!numeric_cols], as.numeric)  
 #str(temp_train)
 correlation_matrix = cor(temp_train)
+print(correlation_matrix)
 library(corrplot)
 corrplot(correlation_matrix, method = "circle")
 ```
@@ -360,6 +361,15 @@ print((fc6to9-fc3to6)/fc3to6)
 print("sss")
 print(((fc3to6-fc0to3)/fc0to3+(fc6to9-fc3to6)/fc3to6)/2)
 ```
+
+
+```{r}
+perf_is = ifelse(train$perf_6_month_avg == 0, 0, 1 )
+table(perf_is)
+sales_is = ifelse(train$sales_6_month == 0 , 0 , 1)
+table(sales_is)
+```
+
 
 
 

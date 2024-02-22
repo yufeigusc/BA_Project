@@ -81,11 +81,6 @@ set.seed(123)
 #train(went_on_backorder ~ national_inv, data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
 ```
 
-
-```{r}
-print(colnames(train))
-```
-
 - define function
 
 ```{r}
@@ -367,6 +362,9 @@ crossv(formula, temp_data6)
 ```{r}
 temp_data7 = temp_data6
 temp_data7$inventory_compliance <- ifelse(train$national_inv >= train$min_bank, 1, 0)
+```
+
+```{r}
 formula = as.formula(
   went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
   - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
@@ -377,17 +375,14 @@ crossv(formula, temp_data7)
 ```
 
 
-
-```{r}
-head(train$sales_3_month)
-head(train$sales_3_month/90)
-```
-
-
-- add Safety Stock Ratio: min_bank/(sales_3_month/30)
+- add Safety Stock Ratio: min_bank/(sales_3_month/30): 0.8889989 
+- not helping
 ```{r}
 temp_data8 = temp_data7
 temp_data8$safety_stock_ratio = train$min_bank/(train$sales_3_month/90+1)
+```
+
+```{r}
 formula = as.formula(
   went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
   - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
@@ -398,6 +393,92 @@ formula = as.formula(
 crossv(
   formula, temp_data8)
 ```
+
+
+- perf_6/sale_6
+- 0.8899593 - > 0.890413
+```{r}
+temp_data9 = temp_data7
+temp_data9$risk_flag = temp_data9$risk_flag - train_before_factor$stop_auto_buy
+```
+
+```{r}
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  + sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  - risk_flag
+)
+crossv(
+  formula, temp_data9)
+```
+- remove risk_flag?? 0.8949872
+
+
+- Inventory aging 
+- no
+
+- variation of sales - too bad
+```{r}
+# Load the required packages
+library(matrixStats)
+
+# Assuming your dataframe is named 'df'
+sales_3 = train$sales_3_month
+sales_6 = train$sales_6_month - train$sales_3_month
+sales_9 = train$sales_9_month - train$sales_6_month
+
+
+
+# Select the columns for which you want to calculate mean and standard deviation
+columns_to_calculate <- c("sales_3_month", "sales_6_month", "sales_9_month")
+
+# Calculate mean and standard deviation for each row
+mean_values <- rowMeans(cbind(sales_3, sales_6, sales_9), na.rm = TRUE)
+sd_values <- rowSds(as.matrix(cbind(sales_3, sales_6, sales_9)), na.rm = TRUE)
+
+temp_data10 = temp_data9
+
+# Create a new column in the dataframe with mean and standard deviation values
+temp_data10$mean_sd_sales <- sd_values/(mean_values+1)
+missing_values <- any(is.na(temp_data10$mean_sd_sales))
+
+# Print the result
+print(missing_values)
+
+```
+
+```{r}
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  + sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  - risk_flag
+  
+)
+crossv(
+  formula, temp_data10)
+```
+
+
+
+```{r}
+logreg(formula, temp_data7)
+```
+
+
+- scale lead time and in transit qty 
+- doesnt help
 
 
 
