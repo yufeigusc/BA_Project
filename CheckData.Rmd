@@ -371,5 +371,59 @@ table(sales_is)
 ```
 
 
+```{r}
+# Assuming 'data' is your dataframe containing the 'local_bo_qty' variable
+data = train
+summary(data$national_inv)
+hist(data$local_bo_qty, main = "Distribution of local_bo_qty without outliers")
+# Calculate the interquartile range (IQR)
+Q1 <- quantile(data$national_inv, 0.25)
+Q3 <- quantile(data$national_inv, 0.75)
+IQR <- Q3 - Q1
+print(Q1)
+print(Q3)
+print(IQR)
+# Define the threshold for outliers
+threshold <- 3* IQR
+
+outliers <- abs(data$national_inv - mean(data$national_inv)) > threshold * sd(data$national_inv)
+
+# Filter out outliers
+data_filtered <- data[!(data$national_inv < (Q1 - threshold) | data$national_inv > (Q3 + threshold)), ]
+
+# Check distribution
+hist(data_filtered$local_bo_qty, main = "Distribution of local_bo_qty without outliers")
+summary(data_filtered$national_inv)
+```
+```{r}
+data = train
+data$z_score <- scale(data$local_bo_qty)
+hist(data$local_bo_qty)
+summary(data$local_bo_qty)
+threshold <- 30
+data_filtered <- data[abs(data$z_score) <= threshold, ]
+
+# Check distribution
+hist(data_filtered$local_bo_qty, main = "Distribution of local_bo_qty without outliers")
+summary(data_filtered$local_bo_qty)
+```
+
+```{r}
+summary(train$min_bank)
+```
+
+
+```{r}
+data = train
+
+factor_col_name <- colnames(data)
+print(factor_col_name)
+for (col in factor_col_name) {
+  print(col)
+  print(summary(data[[col]]))
+  
+}
+```
+
 
 

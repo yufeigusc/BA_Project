@@ -141,6 +141,53 @@ formula = as.formula(
 set.seed(123)
 crossv(formula, train)
 ```
+all: 0.8620109
+delete rev_top: 0.8539609
+delete deck_risk: 0.9040257
+delete oe_constraint: 0.8352148
+delete ppap_risk: 0.8404266
+delete stop_auto_buy: 0.8649009
+delete 0.25 stop_auto_buy: 0.9041209
+
+
+```{r}
+risk_flag_sum = rowSums(train_before_factor[, c("deck_risk", "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop","potential_issue")])
+train$risk_flag = risk_flag_sum
+train$risk_flag = train$risk_flag - 0.25*train_before_factor$stop_auto_buy - train_before_factor$deck_risk - 0.85*train_before_factor$rev_stop + train_before_factor$potential_issue
+```
+
+- combine potential_issue into risk_flag : 0.9046363
+
+```{r}
+
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month)/forecast_3_month
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  #+ sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  #- risk_flag
+  + sales_3_month/forecast_3_month
+  + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
+  - potential_issue
+  + sales_3_month/min_bank
+)
+crossv(formula, train)
+```
+
+
+
+
+
+
+
+```{r}
+logreg(formula, train)
+```
+
 
 ```{r}
 set.seed(123)
@@ -171,13 +218,8 @@ formula1 = as.formula(
 
 - !!!!!!!!!
 - Train - cross-validation
-```{r}
-train$risk_flag = train$risk_flag + train_before_factor$potential_issue
-```
-
 
 ```{r}
-
 set.seed(123)
 results = train(went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
   - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
@@ -186,11 +228,11 @@ results = train(went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_tim
   + sales_6_month / perf_6_month_avg
   - pieces_past_due
   - local_bo_qty
+  - potential_issue
   - risk_flag
   + sales_3_month/forecast_3_month
   + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
-  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
-  - potential_issue
+  + (forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
   , data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
 print(results$results$ROC)
 ```
