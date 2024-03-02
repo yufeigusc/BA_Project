@@ -169,10 +169,27 @@ formula1 = as.formula(
 )
 ```
 
-```{r}
-crossv(formula1, train)
-```
+- !!!!!!!!!
+- Train - cross-validation
 
+```{r}
+set.seed(123)
+results = train(went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  + sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  - risk_flag
+  + sales_3_month/forecast_3_month
+  + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  , data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
+print(results$results$ROC)
+```
+- !!!!!!!!!
+- Generate Test File
 
 ```{r}
 model1 = glm(formula1 , data = train, family = "binomial")
@@ -244,5 +261,14 @@ colnames(PredTest1) = c("sku", "went_on_backorder")
 str(PredTest1)
 write.csv(PredTest1, "Test_1.csv", row.names = FALSE)
 ```
+```{r}
+Pred2 = predict(model2, newdata = test, type = "response")
+PredTest2 = data.frame(test$sku, Pred1)
+str(PredTest2)
+```
 
-
+```{r}
+colnames(PredTest2) = c("sku", "went_on_backorder")
+str(PredTest2)
+write.csv(PredTest2, "Test_2.csv", row.names = FALSE)
+```

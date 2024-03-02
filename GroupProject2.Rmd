@@ -423,6 +423,50 @@ crossv(
 - Inventory aging 
 - no
 
+
+- Inventory Coverage
+```{r}
+temp_data10 = temp_data9
+temp_data10$inventory_enough <- ifelse(train$national_inv >= train$lead_time*(train$forecast_3_month/90), 1, 0)
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  + sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  - risk_flag
+)
+crossv(
+  formula, temp_data10)
+```
+
+```{r}
+temp_data10 = temp_data9
+temp_data10$inventory_enough <- ifelse(train$national_inv >= train$lead_time*(train$forecast_3_month/90), 1, 0)
+formula = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  + sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  - risk_flag
+  + sales_3_month/forecast_3_month
+  + (sales_6_month-sales_3_month)/sales_3_month
+)
+crossv(
+  formula, temp_data10)
+```
+```
+
+
+
+
 - variation of sales - too bad
 ```{r}
 # Load the required packages
