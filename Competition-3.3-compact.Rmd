@@ -1,0 +1,236 @@
+---
+title: "R Notebook Template for Competition"
+author: ""
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+    theme: readable
+    toc: yes
+---
+
+```{r global-options, echo = FALSE, message = FALSE}
+knitr::opts_chunk$set(warning = FALSE, 
+                      fig.height = 6,
+                      fig.width = 6,
+                      fig.align = "center")
+```
+
+
+# Loading and Exploring the Data Set
+
+
+Read the data files as usual.
+```{r}
+train = read.csv("Competition_Train.csv")
+test = read.csv("Competition_Test.csv")
+```
+
+```{r}
+train_before_factor = read.csv("Competition_Train.csv")
+test_before_factor = read.csv("Competition_Test.csv")
+```
+
+```{r}
+logreg <- function(variables, dataset) {
+  set.seed(123)
+  modelBO = glm(variables, data = dataset, family = "binomial")
+  summary(modelBO)
+}
+```
+
+```{r}
+crossv <- function(variables, dataset) {
+  set.seed(123)
+  results = suppressWarnings(train(variables, data = dataset, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC"))
+  print(results$results$ROC)
+}
+```
+
+```{r}
+crossv_no_suppression <- function(variables, dataset) {
+  set.seed(123)
+  results = train(variables, data = dataset, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
+  print(results$results$ROC)
+}
+```
+
+We can convert categorical variables to appropriate types.
+```{r}
+train$potential_issue = as.factor(train$potential_issue)
+train[18:23] = lapply(train[18:23], as.factor)
+#str(train)
+test$potential_issue = as.factor(test$potential_issue)
+test[18:22] = lapply(test[18:22], as.factor)
+#str(test)
+
+```
+
+
+```{r}
+library(plyr)
+train$potential_issue = revalue(train$potential_issue, c("0"="No", "1"="Yes"))
+train[18:23] = lapply(train[18:23], function(x) revalue(x, c("0"="No", "1"="Yes")))
+#str(train)
+test$potential_issue = revalue(test$potential_issue, c("0"="No", "1"="Yes"))
+test[18:22] = lapply(test[18:22], function(x) revalue(x, c("0"="No", "1"="Yes")))
+#str(test)
+```
+
+
+```{r echo = TRUE, message = FALSE, warning = FALSE}
+library(caret)
+library(e1071)
+```
+
+
+First, we will define our cross-validation experiment.
+```{r}
+fitControl = trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = twoClassSummary)
+```
+
+```{r}
+transform_data = function(data, data_before) {
+  risk_flag_sum = rowSums(data_before[, c("deck_risk", "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop")])
+  data$risk_flag = risk_flag_sum
+  data = subset(data, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
+  data$inventory_turnover_ratio1 <- ifelse((data$national_inv + data$in_transit_qty) == 0, 0, data$sales_1_month / ((data$national_inv + data$in_transit_qty) / 2))
+  data$risk_flag = data$risk_flag - data_before$deck_risk
+  data$inventory_compliance <- ifelse(data$national_inv >= data$min_bank, 1, 0)  
+  data$inventory_enough <- ifelse(data$national_inv >= data$lead_time*(data$forecast_3_month/90), 1, 0)
+  data$neg_inv<-ifelse(data$national_inv <0, 0, 1)
+  return(data)
+}
+```
+
+```{r}
+get_linear_data = function(data_before){
+  lm_data = data_before
+  lm_data = transform_data(lm_data, data_before)
+  return(lm_data)
+}
+```
+
+set training data 
+```{r}
+train = transform_data(train, train_before_factor)
+colnames(train)
+```
+set linear data
+```{r}
+lm_data = get_linear_data(train_before_factor)
+colnames(lm_data)
+```
+fit linear model
+```{r}
+for_formula = as.formula(
+  forecast_3_month ~ . - sku
+  -went_on_backorder - inventory_turnover_ratio1 - inventory_compliance
+  - risk_flag - potential_issue - national_inv
+  )
+```
+
+
+```{r}
+lm_model = lm(for_formula, lm_data)
+summary(lm_model)
+```
+
+```{r}
+lm_model = lm(for_formula, lm_data)
+train$predict_fore_3 = predict(lm_model, lm_data)
+```
+
+
+```{r}
+formula1 = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  + sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  - potential_issue
+  - risk_flag
+  + sales_3_month/forecast_3_month
+  + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
+  + (forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+)
+```
+
+
+```{r}
+crossv(formula1, train)
+```
+
+- Generate Test File
+
+```{r}
+model1 = glm(formula1 , data = train, family = "binomial")
+#summary(model1)
+```
+
+# Preparing the Predictions for Testing
+
+set testing data 
+```{r}
+test = transform_data(test, test_before_factor)
+colnames(test)
+```
+set linear data
+```{r}
+lm_data = get_linear_data(test_before_factor)
+colnames(lm_data)
+```
+fit linear model
+```{r}
+for_formula = as.formula(
+  forecast_3_month ~ . - sku  - inventory_turnover_ratio1 - inventory_compliance
+  - risk_flag - potential_issue - national_inv
+  )
+```
+
+
+```{r}
+lm_model = lm(for_formula, lm_data)
+summary(lm_model)
+```
+
+```{r}
+lm_model = lm(for_formula, lm_data)
+test$predict_fore_3 = predict(lm_model, lm_data)
+```
+
+Using the selected model, we make the predictions on the test set and save *sku* and the predicted probabilities of backorder in a data frame.
+```{r}
+Pred1 = predict(model1, newdata = test, type = "response")
+PredTest1 = data.frame(test$sku, Pred1)
+str(PredTest1)
+```
+
+```{r}
+summary(PredTest1)
+```
+
+
+Finally, we tally the variable names and save the predictions in a file. The file can be submitted. The argument, *row.names = FALSE*, prevent R from saving additional column with indecies for each row.
+```{r}
+colnames(PredTest1) = c("sku", "went_on_backorder")
+str(PredTest1)
+write.csv(PredTest1, "Test_5.csv", row.names = FALSE)
+```
+
+
+```{r}
+Pred2 = predict(model2, newdata = test, type = "response")
+PredTest2 = data.frame(test$sku, Pred1)
+str(PredTest2)
+```
+
+```{r}
+colnames(PredTest2) = c("sku", "went_on_backorder")
+str(PredTest2)
+write.csv(PredTest2, "Test_2.csv", row.names = FALSE)
+```

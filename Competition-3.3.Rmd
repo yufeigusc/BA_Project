@@ -1,0 +1,288 @@
+---
+title: "R Notebook Template for Competition"
+author: ""
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+    theme: readable
+    toc: yes
+---
+
+```{r global-options, echo = FALSE, message = FALSE}
+knitr::opts_chunk$set(warning = FALSE, 
+                      fig.height = 6,
+                      fig.width = 6,
+                      fig.align = "center")
+```
+
+
+# Loading and Exploring the Data Set
+
+
+Read the data files as usual.
+```{r}
+train = read.csv("Competition_Train.csv")
+test = read.csv("Competition_Test.csv")
+```
+
+```{r}
+train_before_factor = read.csv("Competition_Train.csv")
+test_before_factor = read.csv("Competition_Test.csv")
+```
+
+```{r}
+logreg <- function(variables, dataset) {
+  set.seed(123)
+  modelBO = glm(variables, data = dataset, family = "binomial")
+  summary(modelBO)
+}
+```
+
+```{r}
+crossv <- function(variables, dataset) {
+  set.seed(123)
+  results = suppressWarnings(train(variables, data = dataset, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC"))
+  print(results$results$ROC)
+}
+```
+
+```{r}
+crossv_no_suppression <- function(variables, dataset) {
+  set.seed(123)
+  results = train(variables, data = dataset, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
+  print(results$results$ROC)
+}
+```
+
+We can convert categorical variables to appropriate types.
+```{r}
+train$potential_issue = as.factor(train$potential_issue)
+train[18:23] = lapply(train[18:23], as.factor)
+#str(train)
+test$potential_issue = as.factor(test$potential_issue)
+test[18:22] = lapply(test[18:22], as.factor)
+#str(test)
+
+```
+
+
+You are encouraged to explore the data set in more detail to understand the variables and obtain some insights that might help you build better models.
+
+
+Later, we are going to use two new packages, "caret" and "e1071", to carry out the cross-validation for a logistic regression model.  Before that, we need to change the level labels since we want to use AUC as the performance measure in cross-validation. You can test the cross-validation without running the following code chunk, and see what error message you get.
+```{r}
+library(plyr)
+train$potential_issue = revalue(train$potential_issue, c("0"="No", "1"="Yes"))
+train[18:23] = lapply(train[18:23], function(x) revalue(x, c("0"="No", "1"="Yes")))
+#str(train)
+test$potential_issue = revalue(test$potential_issue, c("0"="No", "1"="Yes"))
+test[18:22] = lapply(test[18:22], function(x) revalue(x, c("0"="No", "1"="Yes")))
+#str(test)
+```
+
+
+# Comparing Two Prediction Models
+
+
+In this demonstration, we will only compare two logistic regression models, one using all the independent variables in the data set and the other using only one independent variable, *national_inv*. We will use $k$-fold cross-validation to compare the performance of these two models. Let's install and load two new packages.
+```{r echo = TRUE, message = FALSE, warning = FALSE}
+library(caret)
+library(e1071)
+```
+
+
+First, we will define our cross-validation experiment.
+```{r}
+fitControl = trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = twoClassSummary)
+```
+
+
+```{r}
+risk_flag_sum = rowSums(train_before_factor[, c("deck_risk", "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop")])
+train$risk_flag = risk_flag_sum
+train = subset(train, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
+```
+
+```{r}
+train$inventory_turnover_ratio1 <- ifelse((train$national_inv + train$in_transit_qty) == 0, 0, train$sales_1_month / ((train$national_inv + train$in_transit_qty) / 2))
+```
+
+```{r}
+train$risk_flag = train$risk_flag - train_before_factor$deck_risk
+```
+
+```{r}
+train$inventory_compliance <- ifelse(train$national_inv >= train$min_bank, 1, 0)
+```
+
+```{r}
+train$inventory_enough <- ifelse(train$national_inv >= train$lead_time*(train$forecast_3_month/90), 1, 0)
+```
+
+
+```{r}
+train$neg_inv<-ifelse(train$national_inv <0, 0, 1)
+```
+
+fit linear regression model
+```{r}
+lm_data = train_before_factor
+lm_data$inventory_turnover_ratio1 <- ifelse((lm_data$national_inv + lm_data$in_transit_qty) == 0, 0, lm_data$sales_1_month / ((lm_data$national_inv + lm_data$in_transit_qty) / 2))
+```
+
+```{r}
+lm_data$inventory_compliance <- ifelse(lm_data$national_inv >= lm_data$min_bank, 1, 0)
+```
+
+```{r}
+lm_data$inventory_enough <- ifelse(lm_data$national_inv >= lm_data$lead_time*(lm_data$forecast_3_month/90), 1, 0)
+```
+
+```{r}
+risk_flag_sum = rowSums(train_before_factor[, c( "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop")])
+lm_data$risk_flag = risk_flag_sum
+lm_data = subset(lm_data, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
+```
+
+```{r}
+for_formula = as.formula(
+  forecast_3_month ~ . - sku - went_on_backorder
+  -went_on_backorder - inventory_turnover_ratio1 - inventory_compliance
+  - risk_flag - potential_issue - national_inv
+)
+lm_model = lm(for_formula, lm_data)
+summary(lm_model)
+```
+
+
+```{r}
+lm_model = lm(for_formula, lm_data)
+train$predict_fore_3 = predict(lm_model, lm_data)
+```
+
+
+```{r}
+formula1 = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  + sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  - potential_issue
+  - risk_flag
+  + sales_3_month/forecast_3_month
+  + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
+  + (forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+)
+```
+```{r}
+crossv(formula1, train)
+```
+
+- Generate Test File
+
+```{r}
+model1 = glm(formula1 , data = train, family = "binomial")
+summary(model1)
+```
+
+# Preparing the Predictions for Testing
+
+```{r}
+risk_flag_sum = rowSums(test_before_factor[, c("deck_risk", "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop")])
+test$risk_flag = risk_flag_sum
+test = subset(test, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
+```
+
+```{r}
+test$inventory_turnover_ratio1 <- ifelse((test$national_inv + test$in_transit_qty) == 0, 0, test$sales_1_month / ((test$national_inv + test$in_transit_qty) / 2))
+```
+
+```{r}
+test$risk_flag = test$risk_flag - test_before_factor$deck_risk
+```
+
+```{r}
+test$inventory_compliance <- ifelse(test$national_inv >= test$min_bank, 1, 0)
+```
+
+```{r}
+test$inventory_enough <- ifelse(test$national_inv >= test$lead_time*(test$forecast_3_month/90), 1, 0)
+```
+
+```{r}
+test$neg_inv<-ifelse(test$national_inv <0, 0, 1)
+```
+
+
+fit linear regression model
+```{r}
+lm_data = test_before_factor
+lm_data$inventory_turnover_ratio1 <- ifelse((lm_data$national_inv + lm_data$in_transit_qty) == 0, 0, lm_data$sales_1_month / ((lm_data$national_inv + lm_data$in_transit_qty) / 2))
+```
+
+```{r}
+lm_data$inventory_compliance <- ifelse(lm_data$national_inv >= lm_data$min_bank, 1, 0)
+```
+
+```{r}
+lm_data$inventory_enough <- ifelse(lm_data$national_inv >= lm_data$lead_time*(lm_data$forecast_3_month/90), 1, 0)
+```
+
+```{r}
+risk_flag_sum = rowSums(test_before_factor[, c( "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop")])
+lm_data$risk_flag = risk_flag_sum
+lm_data = subset(lm_data, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
+```
+
+```{r}
+for_formula = as.formula(
+  forecast_3_month ~ . - sku
+ - inventory_turnover_ratio1 - inventory_compliance
+  - risk_flag - potential_issue - national_inv
+)
+lm_model = lm(for_formula, lm_data)
+summary(lm_model)
+```
+
+
+```{r}
+lm_model = lm(for_formula, lm_data)
+test$predict_fore_3 = predict(lm_model, lm_data)
+```
+
+Using the selected model, we make the predictions on the test set and save *sku* and the predicted probabilities of backorder in a data frame.
+```{r}
+Pred1 = predict(model1, newdata = test, type = "response")
+PredTest1 = data.frame(test$sku, Pred1)
+str(PredTest1)
+```
+
+```{r}
+summary(PredTest1)
+```
+
+
+Finally, we tally the variable names and save the predictions in a file. The file can be submitted. The argument, *row.names = FALSE*, prevent R from saving additional column with indecies for each row.
+```{r}
+colnames(PredTest1) = c("sku", "went_on_backorder")
+str(PredTest1)
+write.csv(PredTest1, "Test_5.csv", row.names = FALSE)
+```
+
+
+```{r}
+Pred2 = predict(model2, newdata = test, type = "response")
+PredTest2 = data.frame(test$sku, Pred1)
+str(PredTest2)
+```
+
+```{r}
+colnames(PredTest2) = c("sku", "went_on_backorder")
+str(PredTest2)
+write.csv(PredTest2, "Test_2.csv", row.names = FALSE)
+```

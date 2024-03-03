@@ -1,13 +1,15 @@
 ---
 title: "R Notebook Template for Competition"
-author: ""
+author: 'G2 Group8'
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
     df_print: paged
-    number_sections: yes
+    number_sections: true
     theme: readable
-    toc: yes
+    toc: true
+  word_document:
+    toc: true
 ---
 
 ```{r global-options, echo = FALSE, message = FALSE}
@@ -122,6 +124,9 @@ train$inventory_enough <- ifelse(train$national_inv >= train$lead_time*(train$fo
 ```
 
 ```{r}
+
+```
+```{r}
 formula = as.formula(
   went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
   - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
@@ -141,185 +146,22 @@ formula = as.formula(
 set.seed(123)
 crossv(formula, train)
 ```
-all: 0.8620109
-delete rev_top: 0.8539609
-delete deck_risk: 0.9040257
-delete oe_constraint: 0.8352148
-delete ppap_risk: 0.8404266
-delete stop_auto_buy: 0.8649009
-delete 0.25 stop_auto_buy: 0.9041209
-
-
-```{r}
-risk_flag_sum = rowSums(train_before_factor[, c("deck_risk", "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop","potential_issue")])
-train$risk_flag = risk_flag_sum
-train$risk_flag = train$risk_flag - 0.25*train_before_factor$stop_auto_buy - train_before_factor$deck_risk - 0.85*train_before_factor$rev_stop + train_before_factor$potential_issue
-```
-
-- combine potential_issue into risk_flag : 0.9046363
-
-```{r}
-
-formula = as.formula(
-  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
-  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
-  +(forecast_6_month-forecast_3_month)/forecast_3_month
-  + local_bo_qty*pieces_past_due
-  - forecast_9_month - forecast_3_month
-  #+ sales_6_month / perf_6_month_avg
-  - pieces_past_due
-  - local_bo_qty
-  #- risk_flag
-  + sales_3_month/forecast_3_month
-  + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
-  - potential_issue
-  + sales_3_month/min_bank
-)
-crossv(formula, train)
-```
-
-
-
-
-
-
-
-```{r}
-logreg(formula, train)
-```
-
-
-```{r}
-set.seed(123)
-train(went_on_backorder ~ . - sku, data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
-```
-
-
-```{r}
-set.seed(123)
-train(went_on_backorder ~ national_inv, data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
-```
-
-```{r}
-train$neg_inv<-ifelse(train$national_inv <0, 0, 1)
-```
-
 
 ```{r}
 formula1 = as.formula(
   went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
   - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
   + local_bo_qty*pieces_past_due
   - forecast_9_month - forecast_3_month
   + sales_6_month / perf_6_month_avg
   - pieces_past_due
   - local_bo_qty
-  - potential_issue
   - risk_flag
   + sales_3_month/forecast_3_month
   + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
-  + (forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
 )
-crossv(formula1, train)
 ```
-fit linear regression model
-```{r}
-lm_fitControl = trainControl(method = "cv", number = 10, summaryFunction = defaultSummary)
-```
-
-
-
-```{r}
-lmcrossv = function(variables, dataset){
-set.seed(123)
-  results = suppressWarnings(train(variables, data = dataset, method = "lm", trControl = lm_fitControl))
-  print(results$results$RMSE)
-  print(results$results$Rsquared)
-}
-```
-
-
-```{r}
-lm_data = train_before_factor
-lm_data$inventory_turnover_ratio1 <- ifelse((lm_data$national_inv + lm_data$in_transit_qty) == 0, 0, lm_data$sales_1_month / ((lm_data$national_inv + lm_data$in_transit_qty) / 2))
-```
-
-```{r}
-lm_data$inventory_compliance <- ifelse(lm_data$national_inv >= lm_data$min_bank, 1, 0)
-```
-
-```{r}
-lm_data$inventory_enough <- ifelse(lm_data$national_inv >= lm_data$lead_time*(lm_data$forecast_3_month/90), 1, 0)
-```
-
-```{r}
-risk_flag_sum = rowSums(train_before_factor[, c( "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop")])
-lm_data$risk_flag = risk_flag_sum
-lm_data = subset(lm_data, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
-```
-
-
-```{r}
-lm_for = as.formula(
-  went_on_backorder ~ . - sku 
-  +lead_time/(in_transit_qty+1) 
-  #- lead_time
-  #- perf_12_month_avg 
-  #- perf_6_month_avg
-  #- sales_1_month
-  #- min_bank
-  #+ local_bo_qty*pieces_past_due
-  - forecast_9_month - forecast_3_month
-  + sales_6_month / perf_6_month_avg
-  #- pieces_past_due
-  #- local_bo_qty
-  #- risk_flag
-  #- potential_issue
-  + sales_3_month/forecast_3_month
-  + (sales_6_month-sales_3_month-sales_3_month)/(sales_3_month+1)
-  + (forecast_6_month-forecast_3_month-forecast_3_month)/(1+forecast_3_month)
-)
-all_for = as.formula(forecast_3_month ~ . -sku)
-#lmcrossv(lm_for, lm_data)
-#lm_model = lm(lm_for, lm_data)
-#summary(lm_model)
-
-```
-
-```{r}
-for_for = as.formula(
-  forecast_3_month ~ . - sku
-  -went_on_backorder - inventory_turnover_ratio1 - inventory_compliance
-  - risk_flag - potential_issue - national_inv
-)
-lm_model = lm(for_for, lm_data)
-summary(lm_model)
-```
-
-
-```{r}
-lm_model = lm(for_for, lm_data)
-train$predict_fore_3 = predict(lm_model, lm_data)
-```
-
-```{r}
-crossv(formula1, train)
-```
-
-
-
-```{r}
-combine_train_data$lin_predict = 
-combine_train_data$log_predict = 
-```
-
-
-
-```{r}
-#logreg(formula1, train)
-```
-
-
 
 - !!!!!!!!!
 - Train - cross-validation
@@ -333,13 +175,10 @@ results = train(went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_tim
   + sales_6_month / perf_6_month_avg
   - pieces_past_due
   - local_bo_qty
-  - potential_issue
   - risk_flag
   + sales_3_month/forecast_3_month
   + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
-  + (forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
-  + (sales_6_month - sales_3_month)
-  - sales_6_month
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
   , data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
 print(results$results$ROC)
 ```
@@ -352,18 +191,40 @@ summary(model1)
 ```
 
 ```{r}
-formula2 = as.formula(
-  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+
+train$neg_inv<-ifelse(train$national_inv <0, 0, 1)
+
+set.seed(123)
+results = train(went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
   - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
-  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
   + local_bo_qty*pieces_past_due
   - forecast_9_month - forecast_3_month
   + sales_6_month / perf_6_month_avg
   - pieces_past_due
   - local_bo_qty
-  #- risk_flag
+  - risk_flag
   + sales_3_month/forecast_3_month
-  + (sales_6_month-sales_3_month)/sales_3_month
+  + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
+  +forecast_3_month/min_bank
+  , data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
+print(results$results$ROC)
+
+```
+
+```{r}
+formula2 = as.formula(
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  + local_bo_qty*pieces_past_due
+  - forecast_9_month - forecast_3_month
+  + sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  - risk_flag
+  + sales_3_month/forecast_3_month
+  + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
+  +(forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  +forecast_3_month/min_bank
 )
 ```
 
@@ -371,8 +232,31 @@ formula2 = as.formula(
 model2 = glm(formula2 , data = train, family = "binomial")
 summary(model2)
 ```
+```{r}
+# Fit linear regression model
+lm_model <- lm(sales_1_month ~ .-went_on_backorder-sku-potential_issue-risk_flag-inventory_turnover_ratio1-inventory_compliance-neg_inv, data = train)
+summary(lm_model)
+# Predict the response variable using linear regression
+train$predicted_sales <- predict(lm_model, newdata = train)
 
+set.seed(123)
+results = train(went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
+  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  + local_bo_qty*pieces_past_due
 
+  - forecast_9_month 
+  - forecast_3_month
+  + sales_6_month / perf_6_month_avg
+  - pieces_past_due
+  - local_bo_qty
+  - risk_flag
+  + sales_3_month/forecast_3_month
+  + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
+  +forecast_3_month/min_bank
+  , data = train, method = "glm", family = "binomial", trControl = fitControl, metric = "ROC")
+print(results$results$ROC)
+
+```
 # Preparing the Predictions for Testing
 
 ```{r}
@@ -397,6 +281,9 @@ test$inventory_compliance <- ifelse(test$national_inv >= test$min_bank, 1, 0)
 test$inventory_enough <- ifelse(test$national_inv >= test$lead_time*(test$forecast_3_month/90), 1, 0)
 ```
 
+```{r}
+test$neg_inv<-ifelse(test$national_inv <0, 0, 1)
+```
 Using the selected model, we make the predictions on the test set and save *sku* and the predicted probabilities of backorder in a data frame.
 ```{r}
 Pred1 = predict(model1, newdata = test, type = "response")
@@ -416,6 +303,7 @@ colnames(PredTest1) = c("sku", "went_on_backorder")
 str(PredTest1)
 write.csv(PredTest1, "Test_1.csv", row.names = FALSE)
 ```
+
 ```{r}
 Pred2 = predict(model2, newdata = test, type = "response")
 PredTest2 = data.frame(test$sku, Pred1)
@@ -425,5 +313,5 @@ str(PredTest2)
 ```{r}
 colnames(PredTest2) = c("sku", "went_on_backorder")
 str(PredTest2)
-write.csv(PredTest2, "Test_2.csv", row.names = FALSE)
+write.csv(PredTest2, "Test_4.csv", row.names = FALSE)
 ```
