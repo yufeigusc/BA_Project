@@ -159,26 +159,63 @@ formula1 = as.formula(
 
 
 ```{r}
-library(foreach)
-library(iterators)
-library(parallel)
-library(doParallel)
+library(h2o)
+library(dplyr)
 ```
 
 ```{r}
-registerDoParallel(cores = detectCores()-2) 
+preprocessed_data <- train %>%
+  mutate(
+    lead_time_in_transit_qty_ratio = lead_time / in_transit_qty,
+    local_bo_qty_pieces_past_due_interaction = local_bo_qty * pieces_past_due,
+    sales_6_month_perf_6_month_avg_ratio = sales_6_month / perf_6_month_avg,
+    sales_3_month_forecast_3_month_ratio = sales_3_month / forecast_3_month,
+    delta_sales_ratio = (sales_6_month - sales_3_month - sales_3_month) / sales_3_month,
+    delta_forecast_ratio = (forecast_6_month - forecast_3_month - forecast_3_month) / forecast_3_month
+  ) %>%
+  select(-sku, -lead_time, -perf_12_month_avg, -perf_6_month_avg, 
+         -sales_1_month, -min_bank, -forecast_9_month, -forecast_3_month, 
+         -pieces_past_due, -local_bo_qty, -potential_issue, -risk_flag) # Update as necessary
 ```
+
+```{r}
+h2o.init(max_mem_size = "4G")
+h2o_data = as.h2o(preprocessed_data)
+splits <- h2o.splitFrame(data = h2o_data, ratios = 0.8)
+train_h2o <- splits[[1]]
+test_h2o <- splits[[2]]
+```
+
+```{r}
+aml <- h2o.automl(x = setdiff(names(train_h2o), "went_on_backorder"), # Specify features
+                  y = "went_on_backorder", # Specify target
+                  training_frame = train_h2o,
+                  max_runtime_secs = 3600, # Or other configuration
+                  include_algos = c("DRF"),
+                  seed = 123)
+
+```
+
+```{r}
+h2o.get_leaderboard(aml, extra_columns = "ALL")
+```
+
+```{r}
+model1 = h2o.getModel("XRT_1_AutoML_2_20240313_144027")
+print(model1)
+```
+
+```{r}
+print(model1@par)
+```
+
+
 
 
 
 
 ntree = 700, nodesize = 15) .mtry=10 - 0.9450235
 ntree = 800, nodesize = 15) mtry = 11 0.9450929
-ntree = 500, nodesize = 10), mtry= 9 0.9451655
-ntree = 700, nodesize = 10), mtry = 9 0.9483755
-ntree = 900, nodesize = 10), mtry=9, 0.9455191
-ntree = 800, nodesize = 10), mtry=9, 0.9457251
-ntree = 700, nodesize = 10), mtry=10, 0.9455117 
 
 
 ```{r}
@@ -186,7 +223,7 @@ fitControl = trainControl(method = "cv", number = 3, classProbs = TRUE, summaryF
 #mtryGrid = expand.grid(.mtry = seq(3, sqrt(ncol(data)) + 2, by = 1))
 mtryGrid = expand.grid(.mtry = seq(10, 12, by = 1))
 set.seed(123)
-rfModel = train(formula1, data = train, method = "rf", metric = "ROC", trControl = fitControl, tuneGrid = mtryGrid, ntree = 700, nodesize = 10)
+rfModel = train(formula1, data = train, method = "rf", metric = "ROC", trControl = fitControl, tuneGrid = mtryGrid, ntree = 800, nodesize = 10)
 print(rfModel)
 bestMtry <- rfModel$bestTune$mtry
 cat("Best mtry:", bestMtry, "\n")
