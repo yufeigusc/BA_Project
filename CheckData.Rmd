@@ -12,8 +12,8 @@ output:
 
 ```{r global-options, echo = FALSE, message = FALSE}
 knitr::opts_chunk$set(warning = FALSE, 
-                      fig.height = 6,
-                      fig.width = 6,
+                      fig.height = 12,
+                      fig.width = 12,
                       fig.align = "center")
 ```
 
@@ -77,24 +77,35 @@ corrplot(correlation_matrix, method = "circle")
 library(readr) # For reading data
 library(dplyr) # For data manipulation
 library(corrplot) # For correlation plot visualization
+library(RColorBrewer)
+
+```
+
+
+```{r}
+
 
 # Read the dataset
 cor_data1 <- read_csv("Competition_Train.csv") # Replace "your_dataset.csv" with the path to your dataset
+
+cor_data1 = subset(cor_data1, select = -c(went_on_backorder))
 
 # Compute correlation matrix
 correlation_matrix <- cor(cor_data1)
 
 # Identify correlations with the target variable
-cor_with_target <- correlation_matrix[, "went_on_backorder"]
+#cor_with_target <- correlation_matrix[, "went_on_backorder"]
 
 # Sort correlations in descending order
-cor_with_target_sorted <- sort(cor_with_target, decreasing = TRUE)
+#cor_with_target_sorted <- sort(cor_with_target, decreasing = TRUE)
 
 # Print correlations with the target variable
-print(cor_with_target_sorted)
+#print(cor_with_target_sorted)
 
-# Visualize correlations with a correlation plot
-corrplot(correlation_matrix, method = "circle")
+col <- colorRampPalette(RColorBrewer::brewer.pal(11, "RdBu"))(200)
+corrplot(correlation_matrix, method = "circle", order = "hclust", 
+         addrect = 3, tl.cex = 0.6, tl.col = "black", 
+         col = col, bg = "lightblue", is.corr = FALSE)
 
 ```
 

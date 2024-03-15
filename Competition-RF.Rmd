@@ -64,11 +64,11 @@ Function used to modify the training dataset for logistic regression
 
 ```{r}
 transform_data = function(data, data_before) {
-  risk_flag_sum = rowSums(data_before[, c("deck_risk", "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop")])
-  data$risk_flag = risk_flag_sum
-  data = subset(data, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
+  #risk_flag_sum = rowSums(data_before[, c("deck_risk", "oe_constraint", "ppap_risk", "stop_auto_buy","rev_stop")])
+  #data$risk_flag = risk_flag_sum
+  #data = subset(data, select = -c(deck_risk,oe_constraint,ppap_risk,stop_auto_buy,rev_stop))
   data$inventory_turnover_ratio1 <- ifelse((data$national_inv + data$in_transit_qty) == 0, 0, data$sales_1_month / ((data$national_inv + data$in_transit_qty) / 2))
-  data$risk_flag = data$risk_flag - data_before$deck_risk
+  #data$risk_flag = data$risk_flag - data_before$deck_risk
   data$inventory_compliance <- ifelse(data$national_inv >= data$min_bank, 1, 0)  
   data$inventory_enough <- ifelse(data$national_inv >= data$lead_time*(data$forecast_3_month/90), 1, 0)
   data$neg_inv<-ifelse(data$national_inv <0, 0, 1)
@@ -102,7 +102,8 @@ fit linear model
 for_3_formula = as.formula(
   forecast_3_month ~ . - sku
   -went_on_backorder - inventory_turnover_ratio1 - inventory_compliance
-  - risk_flag - potential_issue - national_inv - neg_inv - ever_backordered   
+  #- risk_flag 
+  - potential_issue - national_inv - neg_inv - ever_backordered   
   )
 ```
 
@@ -116,15 +117,16 @@ Variables used for Logistic Regression
 
 ```{r}
 formula1 = as.formula(
-  went_on_backorder ~ . - sku +lead_time/in_transit_qty - lead_time
-  - perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
+  went_on_backorder ~ . - sku +lead_time/in_transit_qty 
+  #- lead_time
+  #- perf_12_month_avg - perf_6_month_avg - sales_1_month - min_bank
   + local_bo_qty*pieces_past_due
-  - forecast_9_month - forecast_3_month
+  #- forecast_9_month - forecast_3_month
   + sales_6_month / perf_6_month_avg
-  - pieces_past_due
-  - local_bo_qty
-  - potential_issue
-  - risk_flag
+  #- pieces_past_due
+  #- local_bo_qty
+  #- potential_issue
+  #- risk_flag
   + sales_3_month/forecast_3_month
   + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
   + (forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
@@ -135,14 +137,15 @@ formula1 = as.formula(
 Tools to run random forest in parallel
 
 ```{r}
-#library(foreach)
-#library(iterators)
-#library(doParallel)
+library(foreach)
+library(iterators)
+library(parallel)
+library(doParallel)
 
 ```
 
 ```{r}
-#registerDoParallel(cores = 4)
+registerDoParallel(cores = 4)
 ```
 
 cross-validation setting
@@ -150,11 +153,21 @@ cross-validation setting
 fitControl = trainControl(method = "cv", number = 3, classProbs = TRUE, summaryFunction = twoClassSummary, allowParallel = TRUE, verboseIter = TRUE)
 ```
 
+mtry = 9 0.9531508
 start cross-validation
 ```{r}
-mtryGrid = expand.grid(.mtry = seq(7, 9, by = 1))
+mtryGrid = expand.grid(.mtry = seq(8, 10, by = 1))
 set.seed(123)
-rfModel = train(formula1, data = train, method = "rf", metric = "ROC", trControl = fitControl, tuneGrid = mtryGrid, ntree = 500, nodesize = 20)
+rfModel = train(formula1, data = train, method = "rf", metric = "ROC", trControl = fitControl, tuneGrid = mtryGrid, ntree = 900, nodesize = 10)
+print(rfModel)
+bestMtry <- rfModel$bestTune$.mtry
+cat("Best mtry:", bestMtry, "\n")
+```
+without combining risk flag: 0.9537306
+```{r}
+mtryGrid = expand.grid(.mtry = seq(8, 10, by = 1))
+set.seed(123)
+rfModel = train(formula1, data = train, method = "rf", metric = "ROC", trControl = fitControl, tuneGrid = mtryGrid, ntree = 900, nodesize = 10)
 print(rfModel)
 bestMtry <- rfModel$bestTune$.mtry
 cat("Best mtry:", bestMtry, "\n")
