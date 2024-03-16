@@ -130,6 +130,10 @@ formula1 = as.formula(
   + sales_3_month/forecast_3_month
   + (sales_6_month-sales_3_month-sales_3_month)/sales_3_month
   + (forecast_6_month-forecast_3_month-forecast_3_month)/forecast_3_month
+  + pieces_past_due / national_inv
+  + sales_3_month/forecast_3_month
+  + (perf_12_month_avg - perf_6_month_avg)
+  + national_inv/min_bank
 )
 ```
 
