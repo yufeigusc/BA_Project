@@ -220,4 +220,11 @@ ntree:  600  nodesize:  3  bestMtry:  7  ROC:  0.9553102
 ntree:  600  nodesize:  2  bestMtry:  7  ROC:  0.9558615 
 
 ntree:  600  nodesize:  1  bestMtry:  8  ROC:  0.9557755 
-
+ntree:  900  nodesize:  1  bestMtry:  9  ROC:  0.9556908 
+ntree:  1000  nodesize:  1  bestMtry:  9  ROC:  0.9558026 
+ntree:  1100  nodesize:  2  bestMtry:  8  ROC:  0.9558575 
+ntree:  1100  nodesize:  3  bestMtry:  7  ROC:  0.9553984 
+ntree:  1100  nodesize:  4  bestMtry:  8  ROC:  0.9551782 
+ntree:  1200  nodesize:  2  bestMtry:  8  ROC:  0.9558861 
+ntree:  1200  nodesize:  3  bestMtry:  7  ROC:  0.9554438 
+ntree:  1200  nodesize:  4  bestMtry:  8  ROC:  0.9552291 
