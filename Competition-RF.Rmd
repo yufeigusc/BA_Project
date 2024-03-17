@@ -141,15 +141,15 @@ formula1 = as.formula(
 Tools to run random forest in parallel
 
 ```{r}
-library(foreach)
-library(iterators)
-library(parallel)
-library(doParallel)
+#library(foreach)
+#library(iterators)
+#library(parallel)
+#library(doParallel)
 
 ```
 
 ```{r}
-registerDoParallel(cores = 2)
+#registerDoParallel(cores = 2)
 ```
 
 cross-validation setting
@@ -178,6 +178,15 @@ bestMtry <- rfModel$bestTune$.mtry
 cat("Best mtry:", bestMtry, "\n")
 ```
 
+```{r}
+library(randomForest)
+```
+
+
+```{r}
+set.seed(123)
+model1 = randomForest(formula1, data = train, ntree = 1200, nodesize = 3, mtry = 7)
+```
 
 
 # Preparing the Predictions for Testing
@@ -203,19 +212,18 @@ for_formula = as.formula(
 
 ```{r}
 lm_model = lm(for_formula, lm_data)
-#summary(lm_model)
-```
-
-```{r}
-lm_model = lm(for_formula, lm_data)
 test$predict_fore_3 = predict(lm_model, lm_data)
 ```
 
 ```{r}
-Pred1 = predict(model1, newdata = test, type = "response")
-PredTest1 = data.frame(test$sku, Pred1)
+Pred1 = predict(model1, newdata = test, type = "prob")
+```
+
+```{r}
+PredTest1 = data.frame(test$sku, Pred1[,"Yes"])
 str(PredTest1)
 ```
+
 
 ```{r}
 summary(PredTest1)
