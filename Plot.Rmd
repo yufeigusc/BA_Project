@@ -1,0 +1,28 @@
+```{r}
+# Install and load necessary packages if not already installed
+if (!require("ggplot2")) install.packages("ggplot2")
+library(ggplot2)
+
+# Data
+nodesize <- 1:12
+ntree900 <- c(0.9556908, 0.9558403, 0.9553704, 0.9550484, 0.9549229, 0.954466, 0.954265, 0.9540383, 0.9537269, 0.9533752, 0.952823, 0.953086)
+ntree1000 <- c(0.9558026, 0.955847, 0.9554069, 0.9551178, 0.9548612, 0.9545573, 0.9542914, 0.9540535, 0.9537973, 0.953417, 0.95335, 0.953156)
+ntree1100 <- c(0.9558446, 0.9558575, 0.9553984, 0.9551782, 0.9550221, 0.95462, 0.954309, 0.9541199, 0.9538632, 0.9535022, 0.9534283, 0.9532469)
+ntree1200 <- c(0.955827, 0.9558861, 0.9554438, 0.9552291, 0.9550259, 0.9546227, 0.9543389, 0.954129, 0.9538953, 0.9535542, 0.9534418, 0.9532534)
+
+# Combine data into a data frame
+data <- data.frame(nodesize, ntree900, ntree1000, ntree1100, ntree1200)
+# Reshape for plotting with ggplot
+library(reshape2)
+data_melted <- melt(data, id.vars = 'nodesize', variable.name = 'ntree', value.name = 'ROC')
+
+# Plot
+ggplot(data_melted, aes(x = nodesize, y = ROC, color = ntree, group = ntree)) +
+  geom_line() +
+  ggtitle('ROC Score by Node Size and N-Tree') +
+  xlab('Node Size') +
+  ylab('ROC Score') +
+  theme_minimal() +
+  scale_color_manual(values = c("red", "blue", "green", "purple"))
+```
+
