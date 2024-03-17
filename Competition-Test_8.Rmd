@@ -163,25 +163,25 @@ Tools to run random forest in parallel
 
 
 ```{r}
-library(foreach)
-library(iterators)
-library(parallel)
-library(doParallel)
+#library(foreach)
+#library(iterators)
+#library(parallel)
+#library(doParallel)
 
 ```
 
 ```{r}
-registerDoParallel(cores = round(detectCores(logical = FALSE)/2) )
+#registerDoParallel(cores = round(detectCores(logical = FALSE)) )
 ```
 
 cross-validation setting
 ```{r}
-fitControl = trainControl(method = "cv", number = 3, classProbs = TRUE, summaryFunction = twoClassSummary, verboseIter = TRUE, allowParallel = TRUE)
+fitControl = trainControl(method = "cv", number = 3, classProbs = TRUE, summaryFunction = twoClassSummary, verboseIter = FALSE)
 ```
 
 ```{r}
-ntree_list = c(400)
-cur_nodesize_list = c(5)
+ntree_list = c(900, 1000)
+cur_nodesize_list = c(2,3,4)
 results_df <- data.frame(ntree = integer(), 
                          nodesize = integer(), 
                          bestMtry = integer(), 
@@ -189,7 +189,7 @@ results_df <- data.frame(ntree = integer(),
 
 for (cur_ntree in ntree_list) {
   for (cur_nodesize in cur_nodesize_list) {
-    mtryGrid = expand.grid(.mtry = seq(6, 8, by = 1))
+    mtryGrid = expand.grid(.mtry = seq(7,10, by = 1))
     set.seed(123)
     rfModel = train(formula1, data = train, method = "rf", metric = "ROC", trControl = fitControl, tuneGrid = mtryGrid, ntree = cur_ntree, nodesize = cur_nodesize)
     bestMtry <- rfModel$bestTune$mtry
@@ -208,4 +208,16 @@ for (cur_ntree in ntree_list) {
 #sessionInfo()
 #sink()
 ```
+
+
+
+ntree:  400  nodesize:  3  bestMtry:  8  ROC:  0.955057 
+ntree:  400  nodesize:  4  bestMtry:  8  ROC:  0.9545274 
+
+
+ntree:  600  nodesize:  3  bestMtry:  7  ROC:  0.9553102 
+
+ntree:  600  nodesize:  2  bestMtry:  7  ROC:  0.9558615 
+
+ntree:  600  nodesize:  1  bestMtry:  8  ROC:  0.9557755 
 
